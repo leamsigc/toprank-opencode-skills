@@ -80,21 +80,89 @@ Claude: Found your site at mystore.com — pulling Search Console data now.
 
 Toprank is a **Claude Code plugin**. One-time setup, automatic updates.
 
-### Claude Code (recommended)
+### opencode.ai (recommended)
 
-Run these two commands in Claude Code:
+Run in opencode.ai:
+
+```
+/plugin add /path/to/toprank
+```
+
+All skills available as `/toprank:*` commands.
+
+**Install scripts:**
+
+```bash
+./bin/opencode-test    # Verify plugin structure and dependencies
+./bin/opencode-install # Show install instructions
+```
+
+### Claude Code
 
 ```
 /plugin marketplace add nowork-studio/toprank
-```
-
-```
 /plugin install toprank@nowork-studio
 ```
 
-That's it. All skills are now available as `/toprank:*` commands.
+**Google Ads (optional):** Get a free API key from [adsagent.org](https://www.adsagent.org) — setup instructions there.
 
-**Google Ads (optional):** Connect your account at [adsagent.org](https://www.adsagent.org) (free API key) — setup instructions are provided there.
+### Dependencies
+
+Toprank requires these tools:
+
+| Dependency | Purpose | Install |
+|------------|----------|---------|
+| **npx** | Run MCP servers without global install | Part of npm |
+| **@opencode-ai/adsagent-mcp** | Google Ads API | Auto-installed via MCP |
+| **@modelcontextprotocol/server-chrome-devtools** | Chrome DevTools Protocol | Auto-installed via MCP |
+
+### Chrome DevTools MCP
+
+The `chrome-devtools` MCP server enhances SEO analysis by providing:
+- JavaScript rendering analysis
+- Visual page element inspection
+- Runtime performance metrics
+
+Configure via `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-chrome-devtools"],
+      "env": {
+        "CHROME_REMOTE_DEBUGGING_PORT": "9222"
+      }
+    }
+  }
+}
+```
+
+Start Chrome with remote debugging:
+```
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222
+```
+
+### Test and Verify
+
+After adding the plugin, verify it works:
+
+```bash
+# In opencode:
+
+
+/plugin add /path/to/toprank
+
+# Test available skills:
+/toprank:ads
+/toprank:seo-analysis mystore.com
+
+# Verify MCP servers loaded:
+/mcp list
+```
+
+**Chrome must be running** with remote debugging enabled for SEO analysis to use Chrome DevTools features.
 
 ### Manual Install
 

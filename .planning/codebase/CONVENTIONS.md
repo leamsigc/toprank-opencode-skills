@@ -1,10 +1,10 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-04-13
+**Analysis Date:** 2026-04-16
 
 ## SKILL.md Frontmatter Format
 
-Every skill must have YAML frontmatter with these required fields:
+Every skill must have YAML frontmatter with required fields:
 
 ```yaml
 ---
@@ -32,18 +32,6 @@ triggers:
   - ad spend
   - CPA
   - ROAS
----
-```
-
-**Example from `seo/seo-page/SKILL.md`:**
-```yaml
----
-name: seo-page
-argument-hint: "<URL of the page to analyze, e.g. https://example.com/blog/my-post>"
-description: >
-  Single-page SEO audit: deep content quality evaluation using Google's E-E-A-T
-  framework, Helpful Content guidelines, on-page SEO factors, search intent
-  alignment, technical signals, and readability analysis.
 ---
 ```
 
@@ -94,8 +82,82 @@ def main():
 - Use Python stdlib only — no `pip install` dependencies
 - Always include `--output` flag for file output
 - Print JSON to stdout by default
+- Print progress/errors to stderr
 - Include usage examples in docstring
 - Exit with error codes: `sys.exit(1)` on failure
+
+## Naming Patterns
+
+**Files:**
+- SKILL.md - Main skill definition (uppercase, no spaces)
+- `references/*.md` - Reference documentation (descriptive names)
+- `scripts/*.py` - Helper scripts (snake_case)
+- `test/unit/test_*.py` - Unit tests (test_ prefix)
+- `test/helpers/*.py` - Test utilities (snake_case)
+
+**Functions:**
+- snake_case - `def get_access_token()`, `def derive_cannibalization()`
+
+**Variables:**
+- snake_case - `token`, `site_url`, `results`
+
+**Types:**
+- PascalCase for classes - `class TestDateRange`, `class JudgeScore`
+- camelCase for dataclass fields
+
+## Code Style
+
+**Formatting:**
+- No automated formatter detected (manual formatting used)
+- 4-space indentation
+- Maximum line length ~100 characters
+
+**Linting:**
+- Not detected - no linting config found
+
+**Import Organization:**
+1. Standard library imports (os, sys, json, etc.)
+2. Third-party imports (from unittest.mock, etc.)
+3. Local imports (relative paths)
+
+## Error Handling
+
+**Patterns:**
+- API failures return empty data structures (not exceptions)
+- Network errors logged to stderr, return `{"rows": []}`
+- Authentication errors exit with `sys.exit(1)` after user-friendly message
+
+Example from `seo/seo-analysis/scripts/analyze_gsc.py`:
+```python
+except urllib.error.HTTPError as e:
+    err_body = e.read().decode() if e.fp else "(no body)"
+    print(f"GSC API error {e.code}: {err_body}", file=sys.stderr)
+    return {"rows": []}
+except urllib.error.URLError as e:
+    print(f"GSC API network error: {e.reason}", file=sys.stderr)
+    return {"rows": []}
+```
+
+## Logging
+
+**Framework:** stderr printing
+
+**Patterns:**
+- Progress messages to stderr: `print(f"Pulling {args.days} days...", file=sys.stderr)`
+- Success indicators: `print(f"  ✓ {name}", file=sys.stderr)`
+- Error messages with context: `print("ERROR: gcloud not found...", file=sys.stderr)`
+- Summary output at end with key metrics
+
+## Comments
+
+**When to Comment:**
+- Document external dependencies in docstrings
+- Explain non-obvious business logic thresholds
+- Document API call limits and rate considerations
+
+**Docstrings:**
+- Module-level docstrings for main scripts
+- Function docstrings with usage examples
 
 ## Reference Document Structure
 
@@ -181,4 +243,4 @@ toprank/
 
 ---
 
-*Convention analysis: 2026-04-13*
+*Convention analysis: 2026-04-16*

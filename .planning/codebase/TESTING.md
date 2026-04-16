@@ -1,19 +1,52 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-04-13
+**Analysis Date:** 2026-04-16
 
 ## Test Framework
 
 **Runner:**
 - pytest - Primary test runner
 - unittest - Base classes for unit tests
-- Config: Root-level `conftest.py`
+- Config: Root-level `conftest.py` at `conftest.py`
 
 **Run commands:**
 ```bash
 pytest test/unit/ -v                    # Run unit tests
-pytest test/test_skill_llm_eval.py -v   # Run LLM-judge evals
+pytest test/unit/test_analyze_gsc.py -v # Run specific test
 EVALS=1 pytest                          # Enable LLM-judge tests
+```
+
+## Test File Organization
+
+**Location:**
+- `test/unit/test_*.py` - Unit tests (co-located with similar naming)
+- `test/test_skill_*.py` - E2E and eval tests
+- `test/helpers/*.py` - Test utilities
+
+**Naming:**
+- `test_*.py` pattern for test files
+- Test classes use PascalCase: `class TestDateRange(unittest.TestCase)`
+
+**Structure:**
+```
+test/
+├── unit/
+│   ├── test_analyze_gsc.py
+│   ├── test_cms_scripts.py
+│   └── test_url_inspection.py
+├── helpers/
+│   ├── __init__.py
+│   ├── session_runner.py
+│   ├── llm_judge.py
+│   ├── eval_store.py
+│   └── touchfiles.py
+├── fixtures/
+│   ├── mock-analyze-gsc.py
+│   ├── sample_gsc_data.json
+│   └── mock-gcloud.sh
+├── test_skill_e2e.py
+├── test_skill_llm_eval.py
+└── test_ads_skill_llm_eval.py
 ```
 
 ## Unit Tests
@@ -22,7 +55,7 @@ EVALS=1 pytest                          # Enable LLM-judge tests
 
 **Purpose:** Test pure logic functions — no external API calls, no gcloud, no credentials needed.
 
-**Example from `test/unit/test_analyze_gsc.py`:**
+**Example from `test/unit/test_analyze_gsc.py` (958 lines):**
 ```python
 """
 Unit tests for seo-analysis/scripts/analyze_gsc.py
@@ -55,22 +88,50 @@ class TestDateRange(unittest.TestCase):
         start, end = gsc.date_range(90)
         self.assertIsInstance(start, str)
         self.assertIsInstance(end, str)
-
-    def test_end_is_three_days_ago(self):
-        _, end = gsc.date_range(90)
-        expected_end = (date.today() - timedelta(days=3)).isoformat()
-        self.assertEqual(end, expected_end)
 ```
 
 **Key patterns:**
-- Import script as module using `importlib.util`
-- Use unittest.TestCase for organization
-- Mock external dependencies (API calls, file I/O)
+- Import script as module using `importlib.util.spec_from_file_location`
+- Use `unittest.TestCase` for organization
+- Mock external dependencies with `unittest.mock.patch`
 - Test boundary conditions explicitly
+- Each test class focuses on a specific function
 
-## LLM-Judge Evals
+**Test class organization:**
+```python
+class TestDeriveCannibalization(unittest.TestCase):
+    """derive_cannibalization() finds queries where multiple pages compete."""
 
-**Location:** `test/helpers/`
+    def _make_row(self, query, page, clicks, impressions, ctr=0.05, position=8.0):
+        return {'keys': [query, page], 'clicks': clicks, 'impressions': impressions,
+                'ctr': ctr, 'position': position}
+```
+
+## Test Structure
+
+### E2E Tests (`test/test_skill_e2e.py`)
+
+**Purpose:** Spawns `claude -p` with the skill installed in a temp working directory. Uses mock scripts and fixture data so no real Google credentials are needed.
+
+**Key features:**
+- Creates temporary workdir with skill copied
+- Mocks GSC scripts with fixture data
+- Uses mock gcloud CLI
+- Records tool calls and output
+- Uses LLM judge for report quality scoring
+
+```python
+def test_seo_fixture_full_audit():
+    result = run_skill_test(
+        prompt='Run the seo-analysis skill for sc-domain:example-saas.com...',
+        working_directory=workdir,
+        max_turns=35,
+        timeout_ms=5 * 60 * 1000,
+        test_name='seo-fixture-full-audit',
+    )
+```
+
+### LLM-Judge Tests (`test/helpers/llm_judge.py`)
 
 **Purpose:** Evaluate SKILL.md quality using LLM-as-judge with Gemini.
 
@@ -82,60 +143,13 @@ class TestDateRange(unittest.TestCase):
 **Run:**
 ```bash
 EVALS=1 pytest test/test_skill_llm_eval.py              # Run all evals
-EVALS=1 EVALS_BASE=main pytest                            # Run changed tests only
-EVALS=1 EVALS_ALL=1 pytest                                # Run all tests regardless of changes
+EVALS=1 EVALS_BASE=main pytest                          # Run changed tests only
+EVALS=1 EVALS_ALL=1 pytest                              # Run all tests regardless of changes
 ```
 
-**Cost:** ~$0.05 per run (Gemini Flash)
+**Cost:** ~$0.02 per run (Gemini Flash)
 
-## Test Structure
-
-**LLM-judge test file (`test/test_skill_llm_eval.py`):**
-```python
-"""
-LLM-as-a-Judge evals for seo-analysis SKILL.md quality.
-
-Run: EVALS=1 pytest test/test_skill_llm_eval.py
-Cost: ~$0.05 per run (Gemini Flash)
-"""
-
-import os
-import sys
-from pathlib import Path
-
-import pytest
-
-from helpers.llm_judge import extract_section, run_judge_test
-from helpers.eval_store import EvalCollector
-from helpers.touchfiles import (
-    select_tests, detect_base_branch, get_changed_files,
-    LLM_JUDGE_TOUCHFILES, GLOBAL_TOUCHFILES,
-)
-
-ROOT = Path(__file__).parent.parent
-SKILL_MD = ROOT / 'skills' / 'seo-analysis' / 'SKILL.md'
-
-EVALS = bool(os.environ.get('EVALS'))
-pytestmark = pytest.mark.skipif(not EVALS, reason='Set EVALS=1 to run LLM-judge evals')
-
-# ... selection logic for changed-file detection
-
-SUITE = 'seo-analysis SKILL.md quality'
-
-
-def _skip(name: str) -> bool:
-    return not EVALS or (_selected is not None and name not in _selected)
-
-
-@pytest.mark.skipif(_skip('seo-phases-clarity'), reason='not selected')
-def test_seo_phases_clarity():
-    run_judge_test('seo-phases-clarity', SUITE,
-        'Phase 1-3 (setup & data collection)',
-        extract_section(_skill_md, '## Phase 1', '## Phase 4'),
-        _collector)
-```
-
-**Quality gates (from `test/helpers/llm_judge.py`):**
+**Quality gates:**
 ```python
 MIN_CLARITY = 4       # 1-5: can an agent understand what to do?
 MIN_COMPLETENESS = 4  # 1-5: is all needed info present?
@@ -147,56 +161,49 @@ MIN_ACTIONABILITY = 4  # 1-5: can an agent act without guessing?
 - `completeness` - Is all needed info present?
 - `actionability` - Can an agent act without guessing?
 
-## Skill Eval Prompts
+## Mocking
 
-**Location:** Each skill has `evals/evals.json`
+**Framework:** `unittest.mock` (MagicMock, patch)
 
-**Format:**
-```json
-{
-  "skill_name": "seo-page",
-  "evals": [
-    {
-      "id": 1,
-      "prompt": "analyze https://www.adsagent.org — how's the SEO on the homepage?",
-      "expected_output": "A scored single-page report covering E-E-A-T, content quality...",
-      "files": []
-    },
-    {
-      "id": 2,
-      "prompt": "can you check this page for me? https://www.pawsvip.com/services/dog-grooming",
-      "expected_output": "A comprehensive page analysis with E-E-A-T scores...",
-      "files": []
-    }
-  ]
-}
+**Patterns:**
+- Mock external API calls at the function level
+- Mock subprocess calls for CLI tools
+- Mock file I/O where needed
+
+**What to Mock:**
+- GSC API calls (`gsc.gsc_query`)
+- gcloud CLI subprocess calls
+- Network requests (urllib)
+
+**What NOT to Mock:**
+- Pure logic functions (date parsing, data transformation)
+- Internal calculations
+
+Example mocking pattern:
+```python
+def _run_buckets(self, rows):
+    token = 'fake-token'
+    mock_data = {'rows': rows}
+
+    with patch.object(gsc, 'gsc_query', return_value=mock_data):
+        return gsc.pull_position_buckets(token, 'sc-domain:test.com', '2025-01-01', '2025-03-31')
 ```
 
-**Purpose:** Defines test prompts that skills should handle correctly. Used for:
-- Manual testing during development
-- Automated skill evaluation
-- Regression testing
-
-## Touchfiles Selection
-
-**Purpose:** Run only tests relevant to changed files.
-
-**Configured in `test/helpers/touchfiles.py`:**
-- `LLM_JUDGE_TOUCHFILES` - Maps test names to file patterns they test
-- `GLOBAL_TOUCHFILES` - Tests that run on any file change
-
-**Behavior:**
-- When changes detected: runs only matching tests
-- No changes detected: runs nothing (or all with `EVALS_ALL=1`)
-
-## Test Fixtures
+## Fixtures and Factories
 
 **Location:** `test/fixtures/`
 
 **Example fixtures:**
 - `mock-analyze-gsc.py` - Mock GSC response data
-- `sample_gsc_data.json` - Sample GSC API response
-- `mock-gcloud.sh` - Mock gcloud CLI responses
+- `sample_gsc_data.json` - Sample GSC API response JSON
+- `mock-gcloud.sh` - Mock gcloud CLI script
+
+**Test data factories:**
+```python
+def _make_row(self, query, page, clicks, impressions, ctr=0.05, position=8.0):
+    return {'keys': [query, page], 'clicks': clicks, 'impressions': impressions,
+            'ctr': ctr, 'position': position}
+```
 
 ## Eval Store
 
@@ -206,13 +213,66 @@ MIN_ACTIONABILITY = 4  # 1-5: can an agent act without guessing?
 
 **Usage:**
 ```python
-from helpers.eval_store import EvalCollector
+from helpers.eval_store import EvalCollector, EvalTestEntry
 
 collector = EvalCollector('llm-judge')
-# ... run tests ...
+collector.add_test(EvalTestEntry(
+    name='test_name',
+    suite='test_suite',
+    tier='llm-judge',
+    passed=True,
+    duration_ms=5000,
+    cost_usd=0.02,
+))
 collector.finalize()  # Saves results
+```
+
+## Test Types
+
+### Unit Tests
+- Location: `test/unit/`
+- Scope: Pure logic functions, no external dependencies
+- Run: `pytest test/unit/ -v`
+
+### E2E Tests
+- Location: `test/test_skill_e2e.py`
+- Scope: Full skill workflow with mocked external services
+- Requires: `EVALS=1` environment variable
+- Timeout: 4-6 minutes per test
+
+### LLM-Judge Tests
+- Location: `test/test_skill_llm_eval.py`
+- Scope: SKILL.md documentation quality
+- Requires: `EVALS=1` + Gemini API key
+
+## Common Patterns
+
+### Async/Subprocess Testing
+```python
+# Mock subprocess for gcloud calls
+mock_result = MagicMock()
+mock_result.returncode = 0
+mock_result.stdout = 'ya29.my-token\n'
+with patch('subprocess.run', return_value=mock_result):
+    token = gsc.get_access_token()
+```
+
+### Error Testing
+```python
+def test_exits_when_gcloud_not_found(self):
+    with patch('subprocess.run', side_effect=FileNotFoundError):
+        with self.assertRaises(SystemExit):
+            gsc.get_access_token()
+```
+
+### Boundary Testing
+```python
+def test_boundary_impressions_501(self):
+    q = self._make_query(impressions=501, ctr=2.5, position=8)
+    opps = self._get_opportunities([q])
+    self.assertEqual(len(opps), 1)
 ```
 
 ---
 
-*Testing analysis: 2026-04-13*
+*Testing analysis: 2026-04-16*

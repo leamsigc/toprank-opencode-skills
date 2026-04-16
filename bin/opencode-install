@@ -1,0 +1,57 @@
+#!/bin/bash
+set -e
+
+PLUGIN_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+echo "=== Toprank opencode.ai Plugin Install ==="
+echo "Plugin directory: $PLUGIN_DIR"
+echo ""
+
+echo "Option 1: Add via opencode command (recommended)"
+echo "In opencode, run:"
+echo "  /plugin add $PLUGIN_DIR"
+echo ""
+
+echo "Option 2: Manual config"
+SETTINGS_FILE="$HOME/.claude/settings.json"
+if [ -f "$SETTINGS_FILE" ]; then
+  echo "Found $SETTINGS_FILE"
+  echo ""
+  echo "Adding to extraKnownMarketplaces..."
+  # Check if already exists
+  if grep -q "toprank" "$SETTINGS_FILE" 2>/dev/null; then
+    echo "  ! already configured"
+  else
+    echo "  (manual edit needed)"
+  fi
+else
+  echo "No settings file found at $SETTINGS_FILE"
+  echo "  Create it with the plugin config"
+fi
+
+echo ""
+echo "=== Prerequisites check ==="
+command -v npx &>/dev/null && echo "✓ npx (npm)" || echo "✗ npx not found"
+command -v node &>/dev/null && echo "✓ node" || echo "✗ node not found"
+
+echo ""
+echo "Installing MCP servers (via npx -y, no global install needed)..."
+echo "  MCP servers will be auto-installed when opencode loads the plugin"
+echo ""
+echo "To verify MCP works in opencode, run:"
+echo "  /mcp list"
+
+echo ""
+echo "=== Install complete ==="
+echo ""
+echo "Next:"
+echo "1. Set Google Ads API key (optional):"
+echo "   export ADSAGENT_API_KEY=your_key_here"
+echo ""
+echo "2. Start Chrome with remote debugging:"
+echo "   /Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome --remote-debugging-port=9222"
+echo ""
+echo "3. In opencode, add the plugin:"
+echo "   /plugin add $PLUGIN_DIR"
+echo ""
+echo "4. Test a skill:"
+echo "   /toprank:seo-analysis mystore.com"

@@ -1,6 +1,6 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-04-13
+**Analysis Date:** 2026-04-16
 
 ## Directory Layout
 
@@ -9,10 +9,14 @@ toprank/
 ├── .claude-plugin/              # Plugin metadata
 │   ├── plugin.json              # Skill registry (explicit paths)
 │   └── marketplace.json          # Registry entry
-├── .mcp.json                    # MCP server config (AdsAgent)
+├── .mcp.json                    # MCP server config (AdsAgent, Chrome DevTools)
 ├── bin/                         # CLI tools
 │   ├── toprank-config           # Config read/write (bash)
-│   └── toprank-update-check    # Update checker (bash)
+│   ├── toprank-update-check    # Update checker (bash)
+│   ├── chrome-detect.sh        # Chrome detection
+│   ├── chrome-launch.sh        # Chrome launcher
+│   ├── chrome-session.sh       # Chrome session manager
+│   └── auth-fallback.sh       # Auth fallback handler
 ├── google-ads/                  # Google Ads skills
 │   ├── shared/                  # Shared logic (all ads skills)
 │   │   ├── preamble.md         # Bootstrapping logic
@@ -21,36 +25,59 @@ toprank/
 │   ├── ads/                     # Campaign management skill
 │   │   ├── SKILL.md
 │   │   ├── references/         # Domain knowledge
+│   │   │   ├── analysis-heuristics.md
+│   │   │   ├── campaign-structure-guide.md
+│   │   │   ├── session-checks.md
+│   │   │   └── bid-strategy-decision-tree.md
 │   │   └── evals/              # Test cases
 │   ├── ads-audit/              # Account audit skill
 │   │   ├── SKILL.md
 │   │   ├── references/
+│   │   │   ├── account-health-scoring.md
+│   │   │   ├── persona-discovery.md
+│   │   │   └── business-context.md
 │   │   └── evals/
 │   └── ads-copy/               # RSA copy generator skill
 ├── seo/                        # SEO skills
+│   ├── shared/                  # Shared logic (all SEO skills)
+│   │   ├── preamble.md        # Bootstrapping logic
+│   │   └── business-context.md
 │   ├── seo-analysis/           # Full audit skill
 │   │   ├── SKILL.md            # Main skill file
 │   │   ├── scripts/            # Python executables
-│   │   │   ├── analyze_gsc.py
-│   │   │   ├── url_inspection.py
-│   │   │   ├── pagespeed.py
-│   │   │   ├── cms_detect.py
+│   │   │   ├── analyze_gsc.py   # GSC data collection
+│   │   │   ├── url_inspection.py  # URL Inspection API
+│   │   │   ├── pagespeed.py    # PageSpeed API
+│   │   │   ├── cms_detect.py   # CMS detection
+│   │   │   ├── detect_js.py    # JavaScript detection
+│   │   │   ├── chrome_audit.py  # Chrome DevTools audit
 │   │   │   ├── list_gsc_sites.py
-│   │   │   └── fetch_*.py
+│   │   │   ├── show_gsc.py
+│   │   │   ├── show_pagespeed.py
+│   │   │   ├── preflight.py     # GSC preflight check
+│   │   │   ├── preflight_wordpress.py
+│   │   │   ├── preflight_strapi.py
+│   │   │   ├── preflight_contentful.py
+│   │   │   ├── preflight_ghost.py
+│   │   │   ├── fetch_wordpress_content.py
+│   │   │   ├── fetch_strapi_content.py
+│   │   │   ├── fetch_contentful_content.py
+│   │   │   ├── fetch_ghost_content.py
+│   │   │   └── push_strapi_seo.py
 │   │   ├── references/
+│   │   │   └── gsc_setup.md
 │   │   └── evals/
 │   ├── content-writer/
 │   ├── keyword-research/
+│   │   └── references/
 │   ├── meta-tags-optimizer/
+│   │   └── references/
 │   ├── schema-markup-generator/
+│   │   └── references/
 │   ├── seo-page/
 │   └── setup-cms/
 ├── gemini/                     # Cross-model review skill
-│   ├── SKILL.md
-│   └── evals/
 ├── toprank-upgrade-skill/      # Self-updater skill
-│   ├── SKILL.md
-│   └── evals/
 ├── test/                      # Test infrastructure
 │   ├── unit/                  # Unit tests
 │   ├── helpers/               # Test utilities
@@ -72,12 +99,12 @@ toprank/
 **`.mcp.json`:**
 - Purpose: MCP server auto-configuration
 - Contains: Server definitions with command/args/transport
-- Key files: `AdsAgent MCP server config`
+- Key files: AdsAgent MCP, Chrome DevTools MCP configs
 
 **`bin/`:**
 - Purpose: CLI tools for skills to call
-- Contains: `toprank-config`, `toprank-update-check`
-- Key files: Both scripts are bash executables
+- Contains: `toprank-config`, `toprank-update-check`, Chrome helpers
+- Key files: All bash executables
 
 **`google-ads/`:**
 - Purpose: Google Ads management skills
@@ -106,7 +133,7 @@ toprank/
 
 **Core Logic:**
 - `google-ads/ads/SKILL.md`: Campaign management
-- `seo/seo-analysis/SKILL.md`: Full SEO audit (1700+ lines)
+- `seo/seo-analysis/SKILL.md`: Full SEO audit
 - `google-ads/shared/preamble.md`: Ads bootstrapping (all ads skills read this first)
 - `seo/shared/preamble.md`: SEO bootstrapping (all SEO skills read this first)
 
@@ -189,4 +216,4 @@ toprank/
 
 ---
 
-*Structure analysis: 2026-04-13*
+*Structure analysis: 2026-04-16*

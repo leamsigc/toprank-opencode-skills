@@ -1,0 +1,78 @@
+#!/bin/bash
+set -e
+
+PLUGIN_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+echo "=== Toprank opencode.ai Plugin Test ==="
+echo "Plugin directory: $PLUGIN_DIR"
+echo ""
+
+echo "--- Step 1: Verify plugin structure ---"
+for f in .opencode/config.json .opencode/plugin.ts .mcp.json; do
+  if [ -f "$PLUGIN_DIR/$f" ]; then
+    echo "✓ $f exists"
+  else
+    echo "✗ $f missing"
+    exit 1
+  fi
+done
+
+echo ""
+echo "--- Step 2: Check MCP servers ---"
+echo "Testing MCP server availability..."
+if command -v npx &>/dev/null; then
+  echo "✓ npx available"
+
+  echo "Testing chrome-devtools MCP..."
+  if npx -y @modelcontextprotocol/server-chrome-devtools --help &>/dev/null; then
+    echo "✓ chrome-devtools MCP available"
+  else
+    echo "! chrome-devtools MCP not installed (optional)"
+  fi
+
+  echo "Testing adsagent MCP..."
+  if npx -y @opencode-ai/adsagent-mcp --help &>/dev/null; then
+    echo "✓ adsagent MCP available"
+  else
+    echo "! adsagent MCP not installed (optional)"
+  fi
+else
+  echo "✗ npx not found (npm required)"
+  exit 1
+fi
+
+echo ""
+echo "--- Step 3: Verify opencode config ---"
+if command -v opencode &>/dev/null; then
+  echo "✓ opencode CLI available"
+  echo ""
+  echo "To install in opencode, run:"
+  echo "  /plugin add $PLUGIN_DIR"
+  echo ""
+  echo "To test immediately in opencode:"
+  echo "  1. Start opencode"
+  echo "  2. Run: /plugin add $PLUGIN_DIR"
+  echo "  3. Run: /toprank:ads (or /toprank:seo-analysis)"
+else
+  echo "! opencode CLI not found in PATH"
+  echo ""
+  echo "Install opencode from https://opencode.ai"
+  echo ""
+  echo "After installing, to add the plugin:"
+  echo "  /plugin add $PLUGIN_DIR"
+fi
+
+echo ""
+echo "--- Step 4: List available skills ---"
+echo "Google Ads skills:"
+ls -1 "$PLUGIN_DIR/google-ads"/*/SKILL.md 2>/dev/null | xargs -I{} basename {} .md | sed 's/^/  - /'
+echo ""
+echo "SEO skills:"
+ls -1 "$PLUGIN_DIR/seo"/*/SKILL.md 2>/dev/null | xargs -I{} basename {} .md | sed 's/^/  - /'
+
+echo ""
+echo "=== Test complete ==="
+echo ""
+echo "Next steps:"
+echo "1. Install Chrome with remote debugging: open -a 'Google Chrome' --args --remote-debugging-port=9222"
+echo "2. Start opencode and run: /plugin add $PLUGIN_DIR"
+echo "3. Test a skill: /toprank:seo-analysis"
