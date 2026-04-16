@@ -1,0 +1,13 @@
+{
+  "name": "toprank",
+  "version": "1.0.0",
+  "description": "Toprank - SEO + Google Ads plugin for Claude Code",
+  "main": "plugin.ts",
+  "skills": [
+    { "name": "ads", "path": "./skills/ads" },
+    { "name": "seo-analysis", "path": "./skills/seo-analysis" }
+  ],
+  "dependencies": {
+    "@opencode-ai/plugin": ">=0.1.0"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "adsagent": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@opencode-ai/adsagent-mcp"
+      ],
+      "env": {
+        "ADSAGENT_API_KEY": "${ADSAGENT_API_KEY}"
+      }
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-chrome-devtools"
+      ],
+      "env": {
+        "CHROME_REMOTE_DEBUGGING_PORT": "${CHROME_REMOTE_DEBUGGING_PORT:-9222}"
+      }
+    }
+  }
+}
