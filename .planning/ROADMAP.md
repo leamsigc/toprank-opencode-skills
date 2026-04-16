@@ -6,6 +6,7 @@
 - [x] **Phase 2: Chrome Remote Debug Authentication** - Implement CDP session reuse for authenticated Google APIs with fallback (completed 2026-04-13)
 - [x] **Phase 3: chrome-devtools-cli Integration** - Add headless browser SEO analysis using CDP instead of WebFetch (completed 2026-04-13)
 - [x] **Phase 4: chrome-devtools-mcp Integration** - Refactor SEO scripts to use @modelcontextprotocol/server-chrome-devtools MCP instead of CLI (completed 2026-04-13)
+- [ ] **Phase 5: Convert Claude Code Plugin** - Convert existing .claude-plugin to opencode.ai native skills with full feature parity
 
 ---
 
@@ -65,6 +66,17 @@ Plans:
 Plans:
 - [x] 04-01-PLAN.md — chrome-devtools-mcp Integration
 
+### Phase 5: Convert Claude Code Plugin
+**Goal**: Convert existing Claude Code plugin (`.claude-plugin/`) to opencode.ai native skills (`.opencode/`) with full feature parity
+**Depends on**: Phase 1
+**Requirements**: New requirements to be defined
+**Success Criteria** (what must be TRUE):
+  1. All 10 skills from .claude-plugin/plugin.json are available in opencode.ai
+  2. Skills work identically in both Claude Code and opencode.ai environments
+  3. MCP tool patterns replaced with native opencode.ai tool calling
+  4. No feature loss compared to current implementation
+**Plans**: To be planned
+
 ---
 
 ## Progress Table
@@ -75,6 +87,7 @@ Plans:
 | 2. Chrome Remote Debug Authentication | 2/2 | Complete    | 2026-04-13 |
 | 3. chrome-devtools-cli Integration | 1/1 | Complete    | 2026-04-13 |
 | 4. chrome-devtools-mcp Integration | 1/1 | Complete    | 2026-04-13 |
+| 5. Convert Claude Code Plugin | 0/0 | In Progress | — |
 
 ---
 
