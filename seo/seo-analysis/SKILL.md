@@ -142,36 +142,68 @@ Once CDP is confirmed, continue to Phase 1.
 
 ---
 
-## Phase 1 — Open Google Search Console
+## Phase 1 — Auto-Detect Domain from Nuxt Config
 
-Use CDP to open Search Console and extract GSC metrics:
+Before asking user, check for Nuxt config to auto-detect domain:
 
-1. Navigate to Search Console performance page:
-   ```
-   https://search.google.com/search-console/performance/{domain}?metrics=CLICKS,IMPRESSIONS,CTR,POSITION
-   ```
+```bash
+# Check nuxt.config for site URL
+find . -maxdepth 2 -name "nuxt.config.*" -exec grep -l "site\|url\|baseURL" {} \; 2>/dev/null
+cat nuxt.config.* 2>/dev/null | grep -E "site|url|baseURL" | head -5
+```
 
-2. Wait for page load, then evaluate JavaScript to extract the table data:
-   ```javascript
-   // Extract all rows from the GSC performance table
-   Array.from(document.querySelectorAll('table tbody tr')).map(row => 
-     Array.from(row.querySelectorAll('td')).map(cell => cell.innerText.trim())
-   )
-   ```
+Also check:
+- `package.json` → `"homepage"` field
+- `.env` → `NUXT_PUBLIC_SITE_URL`, `SITE_URL`
+- `app.config.*` → `siteURL`
 
-3. Parse the extracted data into structured format:
-   - Page URL
-   - Clicks
-   - Impressions  
-   - CTR (%)
-   - Position (avg)
-
-**If Search Console not showing data** (user not logged in):
-   > "Please log into Search Console in the browser, then run the audit again."
+If found, use that domain. Otherwise ask user.
 
 ---
 
-## Phase 1.5 — Ask User for Domain
+## Phase 1.5 — Open Google Search Console (3 months)
+
+**Ask user for domain if not auto-detected:**
+> "Enter your domain (e.g., mexican-goodies.com)"
+
+Then open Search Console in NEW TAB with last 3 months data:
+
+```
+chrome-devtools_new_page(url="https://search.google.com/search-console/performance/search-analytics?resource_id=sc-domain%3A{DOMAIN}&metrics=CLICKS%2CIMPRESSIONS%2CCTR%2CPOSITION&duration=3months")
+```
+
+Wait for page to fully load, then extract data:
+
+```
+chrome-devtools_evaluate_script(() => {
+  // Wait for table to load
+  return new Promise(resolve => {
+    const check = setInterval(() => {
+      const rows = document.querySelectorAll('table tbody tr');
+      if (rows.length > 0) {
+        clearInterval(check);
+        const data = Array.from(rows).slice(0, 100).map(row => {
+          const cells = row.querySelectorAll('td');
+          return {
+            query: cells[0]?.innerText?.trim() || '',
+            clicks: cells[1]?.innerText?.trim() || '0',
+            impressions: cells[2]?.innerText?.trim() || '0',
+            ctr: cells[3]?.innerText?.trim() || '0%',
+            position: cells[4]?.innerText?.trim() || '0'
+          };
+        });
+        resolve(JSON.stringify(data.slice(0, 100)));
+      }
+    }, 1000);
+    setTimeout(() => resolve('[]'), 30000);
+  });
+})
+```
+
+**Get top 100 queries** - parse the JSON and use for analysis
+
+**If Search Console shows "Sign in required":**
+> "Please log into Search Console in the browser, then run the audit again."
 
 Ask user which domain to check:
 
@@ -1047,6 +1079,19 @@ site's overall performance profile.
 
 **The goal of this report is not comprehensiveness — it is clarity.** The user needs to know exactly what to do next, in what order, and why. Lead with the highest-impact actions. Put supporting data after. Omit anything that doesn't change what the user should do.
 
+**IMPORTANT: Save the report to a file** using the format `{domain}-{date}-full-report.md`:
+
+```bash
+REPORT_FILE="$HOME/toprank/reports/$(echo $DOMAIN | sed 's/\.com$//')-$(date +%Y-%m-%d)-full-report.md"
+mkdir -p "$HOME/toprank/reports"
+```
+
+Use this filename format:
+- `{domain}-2026-04-17-full-report.md`
+- Example: `mexican-goodies-2026-04-17-full-report.md`
+
+Save the report file BEFORE showing to user, then show them the file path.
+
 Output a structured report using this format exactly:
 
 ---
@@ -1253,14 +1298,25 @@ If the schema audit found gaps or errors:
 > table from this report is the input — it already identifies the site type and
 > what schema types are needed per page."
 
-### Keyword Research Handoff
+### Keyword Research Handoff (Automatic)
 
-If the keyword gap analysis found orphan keywords or business relevance gaps:
+**Run keyword research using GSC query data** - analyze top performing queries:
 
-> "I found [N] keyword gaps from GSC data. For deeper discovery — keywords you
-> are not ranking for at all — run `/keyword-research` with these seed topics:
-> [list 3-5 seed terms derived from the gap analysis]. That skill pulls from
-> keyword databases and builds a full opportunity set beyond what GSC can see."
+1. Extract top 20 queries from GSC data (clicks + impressions)
+2. Derive content themes from queries
+3. Run keyword research skill with these as seeds:
+
+```
+keyword-research with seeds: [top 5 queries from audit - format as comma-separated]
+```
+
+This extends the audit with:
+- Related keywords you could rank for
+- Search volume estimates
+- Keyword difficulty
+- Content recommendations
+
+> "Based on your top queries, here are additional keywords to target:"
 
 ---
 
