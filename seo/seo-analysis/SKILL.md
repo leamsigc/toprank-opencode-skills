@@ -2,25 +2,15 @@
 name: seo-analysis
 argument-hint: "<URL to audit, e.g. https://example.com>"
 description: >
-  Full SEO audit: Google Search Console data + URL Inspection API + PageSpeed
-  Insights API + technical crawl + keyword research + metadata audit + schema
-  markup audit + search intent analysis + Core Web Vitals monitoring. Feeds real
-  GSC data and PageSpeed metrics into AI to surface quick wins, diagnose traffic
-  drops, find content gaps, identify metadata mismatches, detect schema gaps,
-  monitor page performance, and produce an actionable 30-day plan. Use this skill
-  whenever the user asks about SEO, search rankings, organic traffic, Google
-  Search Console, keyword performance, traffic drops, content gaps, search
-  visibility, technical SEO, meta tags, schema markup, structured data, URL
-  indexing, keyword research, indexing issues, page speed, performance, Core Web
-  Vitals, LCP, INP, CLS, or Lighthouse scores. Also trigger on: "why is my
-  traffic down", "what keywords am I ranking for", "improve my rankings", "check
-  my search console", "SEO audit", "analyze my SEO", "technical SEO", "meta
-  tags", "indexing issues", "crawl errors", "content strategy", "keyword
-  cannibalization", "search intent", "schema markup", "structured data", "URL
-  inspection", "page speed", "performance score", "core web vitals", "lighthouse",
-  or any organic search question. If in doubt, trigger. This skill handles
-  everything from quick GSC checks to deep technical audits with performance
-  monitoring.
+  Full SEO audit using Chrome DevTools MCP (no gcloud, no API keys required).
+  Opens Google Search Console in Chrome to extract real GSC metrics (clicks, impressions,
+  CTR, position). Uses Lighthouse via CDP for PageSpeed and Core Web Vitals.
+  Technical crawl with full JS rendering for SPA/SSR detection, metadata audit,
+  schema markup audit, and indexability checks. Produces actionable 30-day plan.
+  Trigger on: SEO audit, analyze SEO, traffic down, why is my traffic down,
+  search rankings, improve rankings, check search console, technical SEO,
+  meta tags, page speed, performance, lighthouse, core web vitals,
+  indexing issues, crawl errors, schema markup, structured data.
 ---
 
 # SEO Analysis
@@ -40,9 +30,16 @@ cold.
 
 ## Phase 0 — Establish the Website URL
 
-**MCP Chrome DevTools Integration (Phase 4):** This skill uses @modelcontextprotocol/server-chrome-devtools MCP for headless Chrome page fetching, which renders JavaScript for SPA/SSR sites. The scripts are located at:
-- `$SKILL_SCRIPTS/chrome_audit.py` — fetches pages with full JavaScript rendering via MCP CDP
-- `$SKILL_SCRIPTS/detect_js.py` — detects if a page requires JS rendering (use `--use-mcp` flag for MCP-based fetching)
+**Chrome DevTools MCP:** This skill uses @modelcontextprotocol/server-chrome-devtools MCP for:
+- Opening Google Search Console directly in browser → extract real GSC metrics
+- Lighthouse audit via CDP → no API key needed
+- Headless page fetching → full JS rendering for SPA/SSR sites
+
+Available MCP tools (use these instead of gcloud/scripts):
+- `chrome-devtools_navigate_page` — Open any URL in browser
+- `chrome-devtools_take_snapshot` — Get full page content with JS rendered
+- `chrome-devtools_lighthouse_audit` — Run Lighthouse (performance, accessibility, SEO)
+- `chrome-devtools_evaluate_script` — Run custom JS to extract data
 
 Before doing anything else, check for previously audited sites:
 
@@ -119,60 +116,65 @@ Do NOT pause for user confirmation — just show the one-liner and continue.
 
 ---
 
-## Phase 0 — Preflight Check
+## Phase 0.5 — CDP Preflight Check
 
-Read and follow `../shared/preamble.md` — it handles script discovery, gcloud auth, and GSC API setup. If credentials are already cached, this is instant.
+**No gcloud required** — This skill uses chrome-devtools-mcp only.
 
-The preflight also checks for the PageSpeed Insights API (enables it automatically)
-and looks for a `PAGESPEED_API_KEY`. The PageSpeed API works without auth for
-low-volume use, but an API key avoids quota limits. If the preflight reports no
-API key, suggest:
+Check for MCP chrome-devtools availability:
 
-> "For reliable PageSpeed analysis, create an API key at
-> https://console.cloud.google.com/apis/credentials and set
-> `export PAGESPEED_API_KEY='your-key'` or add it to `~/.toprank/.env`."
+1. Try calling `chrome-devtools_navigate_page` with a test URL
+2. If MCP unavailable, check for chrome-devtools CLI:
+   ```bash
+   chrome-devtools --version 2>/dev/null || npx -y @anthropic/chrome-devtools-cli --version 2>/dev/null
+   ```
+3. If neither available, prompt user:
 
-If the user has no gcloud and wants to skip GSC, jump directly to Phase 5 for a technical-only audit (crawl, meta tags, schema, indexing, PageSpeed).
+> "Chrome DevTools MCP not available. Install it via:
+> `npx -y @modelcontextprotocol/server-chrome-devtools`
+> Or add to your .mcp.json"
 
-> **Reference**: For manual step-by-step setup or troubleshooting, see
-> [references/gsc_setup.md](references/gsc_setup.md).
+Once CDP is confirmed, continue to Phase 1.
 
 ---
 
-## Phase 1 — Confirm Access to Google Search Console
+## Phase 1 — Open Google Search Console
 
-Using `$SKILL_SCRIPTS` from the shared preamble (Step 2):
+Use CDP to open Search Console and extract GSC metrics:
 
-```bash
-python3 "$SKILL_SCRIPTS/list_gsc_sites.py"
-```
+1. Navigate to Search Console performance page:
+   ```
+   https://search.google.com/search-console/performance/{domain}?metrics=CLICKS,IMPRESSIONS,CTR,POSITION
+   ```
 
-**If it lists sites** → done. Carry the site list into Phase 2.
+2. Wait for page load, then evaluate JavaScript to extract the table data:
+   ```javascript
+   // Extract all rows from the GSC performance table
+   Array.from(document.querySelectorAll('table tbody tr')).map(row => 
+     Array.from(row.querySelectorAll('td')).map(cell => cell.innerText.trim())
+   )
+   ```
 
-**If "No Search Console properties found"** → wrong Google account. Ask the user
-which account owns their GSC properties at
-https://search.google.com/search-console, then re-authenticate:
+3. Parse the extracted data into structured format:
+   - Page URL
+   - Clicks
+   - Impressions  
+   - CTR (%)
+   - Position (avg)
 
-```bash
-gcloud auth application-default login \
-  --scopes=https://www.googleapis.com/auth/webmasters,https://www.googleapis.com/auth/webmasters.readonly
-```
+**If Search Console not showing data** (user not logged in):
+   > "Please log into Search Console in the browser, then run the audit again."
 
-**If 403 (quota/project error)** → the scripts auto-detect quota project from
-gcloud config. If it still fails, set it explicitly:
+---
 
-```bash
-gcloud auth application-default set-quota-project "$(gcloud config get-value project)"
-```
+## Phase 1.5 — Get GSC Property URL
 
-**If 403 (API not enabled)** → run:
+Ask user which domain to check:
 
-```bash
-gcloud services enable searchconsole.googleapis.com
-```
+> "Enter the domain to audit (e.g., example.com) — I'll open its Search Console"
 
-**If 403 (permission denied)** → the account lacks GSC property access. Verify
-at Search Console → Settings → Users and permissions.
+Construct the Search Console URL:
+- Domain property: `https://search.google.com/search-console/performance/search-analytics?resource_id=sc-domain:{domain}`
+- URL prefix: `https://search.google.com/search-console/performance/{domain}?metrics=CLICKS,IMPRESSIONS,CTR,POSITION`
 
 ---
 
@@ -205,26 +207,40 @@ Confirm the match with the user before proceeding: "I'll pull GSC data for
 
 ## Phase 3 — Collect GSC Data
 
-**⚡ Speed**: In the same turn you run `analyze_gsc.py`, also fire a parallel
-WebFetch for `{target_url}/robots.txt` — it's always needed in Phase 5 and you
-already know the URL. Both calls can run simultaneously.
+**Phase 3 — Extract GSC Data via CDP**
 
-Run the main analysis script with the confirmed site property:
+Instead of gcloud API, scrape Search Console in browser:
 
-```bash
-python3 "$SKILL_SCRIPTS/analyze_gsc.py" \
-  --site "sc-domain:example.com" \
-  --days 90 \
-  --brand-terms "$BRAND_TERMS"
-```
+1. Navigate to the performance page:
+   ```
+   https://search.google.com/search-console/performance/{property}?compare=true&days=90
+   ```
 
-(Omit `--brand-terms` if `$BRAND_TERMS` is empty.)
+2. Wait for data to load, then extract via JavaScript:
+   ```javascript
+   // Get all table data
+   const rows = [];
+   document.querySelectorAll('table tbody tr').forEach(row => {
+     const cells = row.querySelectorAll('td');
+     if (cells.length >= 4) {
+       rows.push({
+         query: cells[0].innerText,
+         clicks: cells[1].innerText,
+         impressions: cells[2].innerText,
+         ctr: cells[3].innerText,
+         position: cells[4].innerText
+       });
+     }
+   });
+   JSON.stringify(rows);
+   ```
 
-After `analyze_gsc.py` completes, run the display utility to print a structured summary — **do not write inline Python to parse the JSON yourself**:
+3. Parse results into structured format for the audit report
 
-```bash
-python3 "$SKILL_SCRIPTS/show_gsc.py"
-```
+**Fallback**: If CDP fails, use the URL Inspection API (no gcloud needed):
+   ```
+   https://www.googleapis.com/searchconsole/v1/sites/{property}/urlInspectionIndex
+   ```
 
 This outputs all sections correctly (CTR is stored as a percentage value already, `branded_split` can be null, `comparison` has string metadata fields — the display script handles all of these safely).
 
@@ -258,7 +274,10 @@ launch all four of these in a single turn using parallel tool calls:
 1. **Phase 3.5**: run `url_inspection.py` (Bash tool)
 2. **Phase 3.6**: detect CMS with `cms_detect.py`, then run the appropriate preflight + fetch if configured (Bash tool)
 3. **Phase 5 pre-fetch**: fetch `robots.txt`, the homepage, and up to 4 top pages via WebFetch — all in parallel
-4. **Phase 5.5**: run `pagespeed.py` for the homepage + top pages by clicks (Bash tool) — this calls the PageSpeed Insights API which is independent of GSC auth
+4. **Phase 5.5**: Use CDP Lighthouse instead of PageSpeed API:
+   ```
+   chrome-devtools_lighthouse_audit(url="https://target-url", device="desktop")
+   ```
 
 This is safe because all four only need the target URL and top pages list, which
 Phase 3 has already produced. Running them in parallel cuts ~3-5 minutes off the
