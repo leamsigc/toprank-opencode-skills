@@ -1118,16 +1118,19 @@ Use this format for each:
 
 ---
 
-**#1 — [Short title, e.g. "Fix title tag on /pricing"]**
+**#1 — [Short title with URL, e.g. "Fix title tag on /blog/salsas"]**
 🔴 Critical / 🟡 High / 🟢 Medium
+**URL**: `https://example.com/blog/salsas` (the exact page needing the fix)
 **Impact**: ~+[N] clicks/mo · **Effort**: Low / Med / High
 
-**What**: [One sentence describing the problem]
-**Evidence**: [Exact metric — e.g., "ranks #7 for 'your-product pricing': 2,400 impressions/mo, 1.2% CTR (expected ~3% at this position)"]
-**Fix**: [Specific, copy-paste-ready action — e.g., "Change title from 'Pricing' to 'Plans & Pricing — [Value Prop] | [Brand]' (54 chars)"]
+**Problem**: [One sentence describing the problem]
+**Evidence**: [Exact metric — e.g., "ranks #1 for 'salsas': 170 impressions, 0% CTR"]
+**Fix**: [Specific, copy-paste-ready code]
 **Why it works**: [One sentence on the mechanism — intent match, persona language, etc.]
 
 ---
+
+**IMPORTANT**: Every item MUST include the URL of the page that needs the fix. Use the GSC "Pages" data to match queries → pages.
 
 Repeat for each of the 3–5 items. Do not add a 6th item — triage ruthlessly. An item only makes the list if you can quantify its impact.
 
