@@ -34,12 +34,17 @@ cold.
 - Opening Google Search Console directly in browser → extract real GSC metrics
 - Lighthouse audit via CDP → no API key needed
 - Headless page fetching → full JS rendering for SPA/SSR sites
+- No scripts needed — just MCP tool calls
 
-Available MCP tools (use these instead of gcloud/scripts):
-- `chrome-devtools_navigate_page` — Open any URL in browser
-- `chrome-devtools_take_snapshot` — Get full page content with JS rendered
-- `chrome-devtools_lighthouse_audit` — Run Lighthouse (performance, accessibility, SEO)
-- `chrome-devtools_evaluate_script` — Run custom JS to extract data
+## Available MCP Tools (chrome-devtools-mcp)
+
+Use these tools directly — no Bash scripts:
+
+- `chrome-devtools_navigate_page(url, type="url")` — Open any URL in browser
+- `chrome-devtools_take_snapshot()` — Get full page content (JS rendered)
+- `chrome-devtools_lighthouse_audit(url, mode="navigation")` — Run Lighthouse
+- `chrome-devtools_evaluate_script(function)` — Run JS to extract data
+- `chrome-devtools_take_screenshot()` — Visual capture
 
 Before doing anything else, check for previously audited sites:
 
@@ -166,15 +171,39 @@ Use CDP to open Search Console and extract GSC metrics:
 
 ---
 
-## Phase 1.5 — Get GSC Property URL
+## Phase 1.5 — Ask User for Domain
 
 Ask user which domain to check:
 
-> "Enter the domain to audit (e.g., example.com) — I'll open its Search Console"
+> "Enter the domain to audit (e.g., example.com)"
 
-Construct the Search Console URL:
-- Domain property: `https://search.google.com/search-console/performance/search-analytics?resource_id=sc-domain:{domain}`
-- URL prefix: `https://search.google.com/search-console/performance/{domain}?metrics=CLICKS,IMPRESSIONS,CTR,POSITION`
+Store as `$DOMAIN`. Then open Search Console in browser:
+
+```
+chrome-devtools_new_page(url="https://search.google.com/search-console/performance/search-analytics?resource_id=sc-domain:{DOMAIN}&metrics=CLICKS,IMPRESSIONS,CTR,POSITION")
+```
+
+Wait for page to load, extract data:
+
+```
+chrome-devtools_evaluate_script(() => {
+  // Extract GSC table
+  const rows = [];
+  document.querySelectorAll('table tbody tr').forEach(row => {
+    const cells = row.querySelectorAll('td');
+    if (cells.length >= 4) {
+      rows.push({
+        query: cells[0].innerText.trim(),
+        clicks: cells[1].innerText.trim(),
+        impressions: cells[2].innerText.trim(),
+        ctr: cells[3].innerText.trim(),
+        position: cells[4].innerText.trim()
+      });
+    }
+  });
+  return JSON.stringify(rows);
+})
+```
 
 ---
 
@@ -954,33 +983,24 @@ After presenting the schema audit, offer:
 
 ---
 
-## Phase 5.5 — PageSpeed Insights (Performance Monitoring)
+## Phase 5.5 — Lighthouse Audit (via CDP)
 
-Run the PageSpeed Insights API on the homepage + top 4 pages by clicks from
-Phase 3. This provides both **lab data** (Lighthouse synthetic test) and **field
-data** (Chrome UX Report real-user metrics) for Core Web Vitals.
+Use MCP Lighthouse instead of PageSpeed API:
 
-**⚡ Speed note**: This should already be running in parallel from the Parallel
-Data Collection step. If not, run it now.
-
-```bash
-python3 "$SKILL_SCRIPTS/pagespeed.py" \
-  --urls "$TARGET_URL,https://example.com/page2,https://example.com/page3" \
-  --both-strategies
+```
+chrome-devtools_lighthouse_audit(url="https://$TARGET_URL", device="desktop")
 ```
 
-Replace the example URLs with the actual homepage and top pages from Phase 3.
-Use `--both-strategies` to get both mobile and desktop scores. If the user has
-set `PAGESPEED_API_KEY` in their environment, the script uses it automatically
-for higher rate limits.
+Run for homepage + top pages by clicks from Phase 3.
 
-After `pagespeed.py` completes, run the display utility:
-
-```bash
-python3 "$SKILL_SCRIPTS/show_pagespeed.py"
-```
-
-### Analyze the Results
+Lighthouse returns:
+- Performance score
+- LCP (Largest Contentful Paint)
+- INP (Interaction to Next Paint)
+- CLS (Cumulative Layout Shift)
+- Accessibility score
+- SEO score
+- Best practices
 
 **1. Performance Scores** — Lighthouse scores 0-100 per page:
 - **90-100 (Good)**: No action needed.
