@@ -2,11 +2,12 @@
 name: seo-analysis
 argument-hint: "<URL to audit, e.g. https://example.com>"
 description: >
-  Full SEO audit using Chrome DevTools MCP (no gcloud, no API keys required).
+  Full SEO audit using Chrome DevTools MCP, unlighthouse CLI, or PageSpeed Insights API.
   Opens Google Search Console in Chrome to extract real GSC metrics (clicks, impressions,
-  CTR, position). Uses Lighthouse via CDP for PageSpeed and Core Web Vitals.
-  Technical crawl with full JS rendering for SPA/SSR detection, metadata audit,
-  schema markup audit, and indexability checks. Produces actionable 30-day plan.
+  CTR, position). Uses Lighthouse via CDP, unlighthouse CLI, or PageSpeed API for
+  PageSpeed and Core Web Vitals. Technical crawl with full JS rendering for SPA/SSR
+  detection, metadata audit, schema markup audit, and indexability checks. Produces
+  actionable 30-day plan.
   Trigger on: SEO audit, analyze SEO, traffic down, why is my traffic down,
   search rankings, improve rankings, check search console, technical SEO,
   meta tags, page speed, performance, lighthouse, core web vitals,
@@ -121,24 +122,65 @@ Do NOT pause for user confirmation — just show the one-liner and continue.
 
 ---
 
-## Phase 0.5 — CDP Preflight Check
+## Phase 0.5 — Chrome & Lighthouse Preflight Check
 
-**No gcloud required** — This skill uses chrome-devtools-mcp only.
+This skill supports three Lighthouse/audit modes. Check for each in order:
 
-Check for MCP chrome-devtools availability:
+### 1. Check for MCP chrome-devtools (preferred for CDP-based audit)
 
 1. Try calling `chrome-devtools_navigate_page` with a test URL
 2. If MCP unavailable, check for chrome-devtools CLI:
    ```bash
    chrome-devtools --version 2>/dev/null || npx -y @anthropic/chrome-devtools-cli --version 2>/dev/null
    ```
-3. If neither available, prompt user:
 
-> "Chrome DevTools MCP not available. Install it via:
-> `npx -y @modelcontextprotocol/server-chrome-devtools`
-> Or add to your .mcp.json"
+### 2. Check for unlighthouse (recommended for full Lighthouse reports)
 
-Once CDP is confirmed, continue to Phase 1.
+```bash
+npx -y unlighthouse --version 2>/dev/null || npm install -g @unlighthouse/cli
+```
+
+If installed, `unlighthouse` provides:
+- Full Lighthouse scores (Performance, Accessibility, Best Practices, SEO)
+- Core Web Vitals (LCP, INP, CLS)
+- Rich CLI reports with HTML/JSON output
+- Site-wide crawling capabilities
+- No API keys required
+
+Usage: `npx unlighthouse --site https://example.com --output .unlighthouse`
+
+### 3. Check for PageSpeed Insights API (richest data)
+
+```bash
+# Check for API key in environment
+echo ${PAGESPEED_API_KEY:-not_set}
+# Or check .env files
+grep PAGESPEED_API_KEY ~/.toprank/.env 2>/dev/null
+```
+
+Provides:
+- Field data (Chrome UX Report real-user metrics)
+- Lab data (Lighthouse synthetic)
+- Both mobile and desktop strategies
+- Optimization opportunities with time savings
+
+### Branch based on availability
+
+| Available | Use for Phase 5.5 |
+|-----------|-------------------|
+| MCP chrome-devtools | `chrome-devtools_lighthouse_audit()` |
+| unlighthouse | `npx unlighthouse --site $TARGET_URL` |
+| PageSpeed API key | `python3 pagespeed.py --urls ... --both-strategies` |
+| None | WebFetch fallback (limited) |
+
+If none available, prompt user:
+
+> "No Lighthouse tools available. Install at least one:
+> - MCP: `npx -y @modelcontextprotocol/server-chrome-devtools`
+> - CLI: `npm install -g @unlighthouse/cli`
+> - API key: https://console.cloud.google.com/apis/credentials"
+
+Once at least one tool is confirmed, continue to Phase 1.
 
 ---
 
@@ -335,10 +377,10 @@ launch all four of these in a single turn using parallel tool calls:
 1. **Phase 3.5**: run `url_inspection.py` (Bash tool)
 2. **Phase 3.6**: detect CMS with `cms_detect.py`, then run the appropriate preflight + fetch if configured (Bash tool)
 3. **Phase 5 pre-fetch**: fetch `robots.txt`, the homepage, and up to 4 top pages via WebFetch — all in parallel
-4. **Phase 5.5**: Use CDP Lighthouse instead of PageSpeed API:
-   ```
-   chrome-devtools_lighthouse_audit(url="https://target-url", device="desktop")
-   ```
+4. **Phase 5.5**: Run Lighthouse (choose best available method):
+   - **MCP**: `chrome-devtools_lighthouse_audit(url="https://target-url")`
+   - **unlighthouse**: `npx unlighthouse --site $TARGET_URL --output .unlighthouse`
+   - **PageSpeed API**: `python3 pagespeed.py --urls "$TARGET_URL,..." --both-strategies`
 
 This is safe because all four only need the target URL and top pages list, which
 Phase 3 has already produced. Running them in parallel cuts ~3-5 minutes off the
@@ -355,7 +397,7 @@ alongside the `analyze_gsc.py` bash call.
 
 ---
 
-## Phase 3.5 — URL Inspection
+## Phase 3.5 — URL Inspection + Sitemap Coverage
 
 Run the URL Inspection API on the top 10 pages by clicks from Phase 3, plus any
 pages flagged as losing traffic:
@@ -376,15 +418,68 @@ for each URL and returns per-page:
 - **Referring sitemaps**: which sitemap(s) reference this URL
 - **Coverage state**: full coverage detail from the Index Coverage report
 
-**If URL Inspection returns 403**: the current auth scope may be read-only. Re-
-authenticate with the broader scope:
+---
+
+## Phase 3.5a — Sitemap Discovery & Fetch
+
+Fetch all URLs from the site's XML sitemap to compare against GSC Index Coverage:
+
+```bash
+python3 "$SKILL_SCRIPTS/sitemap_fetch.py" \
+  --url "https://$TARGET_URL" \
+  --discover \
+  --output /tmp/sitemap.json
+```
+
+This script:
+- Auto-discovers sitemaps from `/sitemap.xml`, `robots.txt`, sitemap index
+- Parses standard XML sitemaps and sitemap indexes
+- Extracts all URLs with their metadata (lastmod, priority, changefreq)
+- Handles nested sitemaps recursively
+
+**Output includes:**
+- `all_urls[]` — all discovered URLs
+- `total_urls` — count
+- `discovered[]` — sitemap URLs found
+- `sitemaps[]` — per-sitemap details with entries
+
+---
+
+## Phase 3.5b — Index Coverage Analysis
+
+Compare sitemap URLs against GSC Indexing status:
+
+```bash
+python3 "$SKILL_SCRIPTS/index_coverage.py" \
+  --domain "$DOMAIN" \
+  --sitemap /tmp/sitemap.json \
+  --output /tmp/coverage.json
+```
+
+This script:
+- Runs URL Inspection API on all sitemap URLs
+- Compares indexing status against sitemap presence
+- Groups URLs by indexing status
+
+**Output includes:**
+- `sitemap_comparison`:
+  - `indexed_count` / `not_indexed_count` / `unknown_count`
+  - `indexed_urls[]` / `not_indexed_urls[]`
+- `summary`: total, indexed, not_indexed, coverage_percent
+
+**Analyze and flag immediately:**
+- **In sitemap but NOT indexed** — critical issue. Fix: check noindex, canonical, robots.txt
+- **Indexed but NOT in sitemap** — should be added to sitemap
+- **Indexed with coverage issues** — root cause analysis needed
+
+---
+
+**If URL Inspection returns 403**: Re-authenticate:
 
 ```bash
 gcloud auth application-default login \
   --scopes=https://www.googleapis.com/auth/webmasters,https://www.googleapis.com/auth/webmasters.readonly
 ```
-
-Then retry `url_inspection.py`.
 
 **Analyze the inspection results and flag immediately:**
 - Any top-traffic page that is `NOT_INDEXED` or `CRAWLED_CURRENTLY_NOT_INDEXED` —
@@ -401,6 +496,7 @@ Then retry `url_inspection.py`.
   structured data findings.
 - Pages whose last crawl time is more than 60 days ago despite having traffic —
   crawl budget issue or accidental de-prioritization.
+- **Sitemap coverage gaps** — pages in sitemap but not indexed need immediate attention
 
 ---
 
@@ -1015,15 +1111,57 @@ After presenting the schema audit, offer:
 
 ---
 
-## Phase 5.5 — Lighthouse Audit (via CDP)
+## Phase 5.5 — Lighthouse Audit
 
-Use MCP Lighthouse instead of PageSpeed API:
+Run Lighthouse for homepage + top pages by clicks from Phase 3. Choose the method based on what's available:
+
+### Option A: MCP chrome-devtools (CDP-based, recommended if MCP available)
 
 ```
 chrome-devtools_lighthouse_audit(url="https://$TARGET_URL", device="desktop")
 ```
 
-Run for homepage + top pages by clicks from Phase 3.
+### Option B: unlighthouse CLI (full reports, no API keys)
+
+```bash
+# Run for site
+npx unlighthouse --site $TARGET_URL --output .unlighthouse
+
+# With options
+npx unlighthouse site https://example.com \
+  --desktop \
+  --output ./lighthouse-report \
+  --json
+```
+
+ unlighthouse provides:
+ - Full HTML report with all categories
+ - JSON output for programmatic use
+ - Performance, Accessibility, Best Practices, SEO scores
+ - Core Web Vitals (LCP, INP, CLS)
+ - Site-wide crawling option
+ - No API keys required
+
+### Option C: PageSpeed Insights API (richest data with field metrics)
+
+```bash
+python3 "$SKILL_SCRIPTS/pagespeed.py" \
+  --urls "$TARGET_URL,https://example.com/page2,https://example.com/page3" \
+  --both-strategies
+```
+
+Then display results:
+```bash
+python3 "$SKILL_SCRIPTS/show_pagespeed.py"
+```
+
+PageSpeed API provides:
+- **Field data** (Chrome UX Report) - real-user metrics
+- **Lab data** (Lighthouse synthetic) - controlled test
+- Both mobile and desktop strategies
+- Optimization opportunities with time savings
+
+### Analyze Results (same for all methods)
 
 Lighthouse returns:
 - Performance score
@@ -1041,7 +1179,7 @@ Lighthouse returns:
 - **0-49 (Poor)**: Critical. These pages are actively penalized in rankings.
   Flag as a Priority Action if the page has significant organic traffic.
 
-**2. Core Web Vitals (Field Data)** — Real-user metrics from Chrome UX Report:
+**2. Core Web Vitals (Field Data - PageSpeed only)** — Real-user metrics from Chrome UX Report:
 - **LCP** (Largest Contentful Paint): Good < 2.5s, Poor > 4.0s
 - **INP** (Interaction to Next Paint): Good < 200ms, Poor > 500ms
 - **CLS** (Cumulative Layout Shift): Good < 0.1, Poor > 0.25
@@ -1061,14 +1199,14 @@ sites often lack CrUX data), use lab data and note it's synthetic.
 - **Phase 3.5 URL Inspection**: Pages flagged as mobile-unfriendly that also
   have poor mobile PageSpeed scores need urgent attention.
 
-**4. Top Opportunities** — The script extracts Lighthouse optimization
+**4. Top Opportunities** — Extract Lighthouse optimization
 opportunities sorted by potential time savings. For each, note:
 - What the opportunity is (e.g., "Properly size images", "Remove unused JavaScript")
 - Estimated savings in milliseconds
 - Which specific page(s) are affected
 - Whether it's a site-wide template issue or page-specific
 
-**5. Origin-Level Data** — If available, the origin (site-wide) CrUX data shows
+**5. Origin-Level Data** — If available with PageSpeed API, the origin (site-wide) CrUX data shows
 the overall performance health of the entire domain. Compare individual page
 scores against the origin average to identify outlier pages dragging down the
 site's overall performance profile.
@@ -1163,7 +1301,18 @@ Every persona-informed recommendation must name the persona and cite the specifi
 
 This section exists to back up the Priority Actions and surface anything else the user should know. Keep it concise — tables and short bullets, not prose paragraphs. Only include sub-sections where there are actual findings.
 
-### Indexing Issues
+### Index Coverage (Sitemap vs GSC)
+*(From Phase 3.5a + 3.5b. Shows sitemap URLs and their Google indexing status.)*
+
+**Summary**: [indexed_count]/[total] URLs indexed ([coverage_percent]%)
+
+| Status | Count | Pages |
+|--------|-------|-------|
+| Indexed | [N] | List top 10 URLs |
+| Not Indexed | [N] | List URLs needing attention |
+| Unknown | [N] | Could not determine |
+
+### Indexing Issues (Individual URLs)
 *(From Phase 3.5. Only include if issues found.)*
 | Page | Coverage State | Last Crawl | Fix |
 |------|---------------|------------|-----|
