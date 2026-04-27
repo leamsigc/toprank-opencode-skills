@@ -1,6 +1,8 @@
-# Toprank
+# toprank-opencode-skills
 
-**SEO + Google Ads skills for Claude Code. Data-driven decisions, not dashboards.**
+**SEO + Google Ads skills for opencode.ai. Data-driven decisions, not dashboards.**
+
+This project is based on the original [Toprank](https://github.com/nowork-studio/toprank) for Claude Code, migrated to work natively as opencode.ai skills. Instead of external API keys, this version uses Chrome DevTools Protocol via MCP for direct browser-based SEO analysis and auditing capabilities.
 
 Toprank gives your AI agent direct access to Google Search Console and Google Ads. It analyzes your traffic, surfaces what's hurting your rankings, finds wasted ad spend, and tells you exactly what to fix. When you have access to the repo, it goes further: rewriting meta tags, fixing headings, adding structured data, and shipping the changes.
 
@@ -78,14 +80,14 @@ Claude: Found your site at mystore.com — pulling Search Console data now.
 
 ## Install
 
-Toprank is a **Claude Code plugin**. One-time setup, automatic updates.
+toprank-opencode-skills is designed as native skills for opencode.ai.
 
-### opencode.ai (recommended)
+### opencode.ai Installation
 
 Run in opencode.ai:
 
 ```
-/plugin add /path/to/toprank
+/plugin add https://github.com/leamsigc/toprank-opencode-skills
 ```
 
 All skills available as `/toprank:*` commands.
@@ -97,15 +99,6 @@ All skills available as `/toprank:*` commands.
 ./bin/opencode-install # Show install instructions
 ```
 
-### Claude Code
-
-```
-/plugin marketplace add nowork-studio/toprank
-/plugin install toprank@nowork-studio
-```
-
-**Google Ads (optional):** Get a free API key from [adsagent.org](https://www.adsagent.org) — setup instructions there.
-
 ### Dependencies
 
 Toprank requires these tools:
@@ -113,15 +106,16 @@ Toprank requires these tools:
 | Dependency | Purpose | Install |
 |------------|----------|---------|
 | **npx** | Run MCP servers without global install | Part of npm |
-| **@opencode-ai/adsagent-mcp** | Google Ads API | Auto-installed via MCP |
 | **@modelcontextprotocol/server-chrome-devtools** | Chrome DevTools Protocol | Auto-installed via MCP |
 
 ### Chrome DevTools MCP
 
-The `chrome-devtools` MCP server enhances SEO analysis by providing:
-- JavaScript rendering analysis
+No external API keys required for SEO analysis. This version uses the Chrome DevTools MCP server directly which provides:
+- Full JavaScript rendering analysis
 - Visual page element inspection
 - Runtime performance metrics
+- Network request inspection
+- DOM accessibility checks
 
 Configure via `.mcp.json`:
 
@@ -151,8 +145,7 @@ After adding the plugin, verify it works:
 ```bash
 # In opencode:
 
-
-/plugin add /path/to/toprank
+/plugin add https://github.com/leamsigc/toprank-opencode-skills
 
 # Test available skills:
 /toprank:ads
@@ -163,31 +156,6 @@ After adding the plugin, verify it works:
 ```
 
 **Chrome must be running** with remote debugging enabled for SEO analysis to use Chrome DevTools features.
-
-### Manual Install
-
-<details>
-<summary>Prefer to edit settings.json directly?</summary>
-
-Add the marketplace and enable the plugin in `~/.claude/settings.json`:
-
-```json
-{
-  "extraKnownMarketplaces": {
-    "nowork-studio": {
-      "source": {
-        "source": "github",
-        "repo": "nowork-studio/toprank"
-      }
-    }
-  },
-  "enabledPlugins": {
-    "toprank@nowork-studio": true
-  }
-}
-```
-
-</details>
 
 ---
 
@@ -224,14 +192,11 @@ All skills are namespaced: `/toprank:ads`, `/toprank:seo-analysis`, `/toprank:ge
 
 ## How It Works
 
-Toprank is a Claude Code plugin. Each skill is a `SKILL.md` file with supporting reference documents, scripts, and eval tests.
+Toprank uses opencode.ai skill architecture. Each skill is a `SKILL.md` file with supporting reference documents, scripts, and eval tests.
 
 ```
-toprank/
-├── .claude-plugin/
-│   ├── plugin.json              <- plugin metadata (explicit skill paths)
-│   └── marketplace.json         <- registry entry
-├── .mcp.json                    <- AdsAgent MCP server (auto-configured)
+toprank-opencode-skills/
+├── .mcp.json                    <- Chrome DevTools MCP configuration
 ├── google-ads/
 │   ├── ads/                     <- campaign management
 │   ├── ads-audit/               <- account audit + business context
@@ -258,14 +223,14 @@ Toprank skills reference external tools using the `~~category` placeholder patte
 
 | Category | Placeholder | Default Server | Alternatives |
 |----------|-------------|---------------|--------------|
-| Google Ads | `~~google-ads` | [AdsAgent MCP](https://www.adsagent.org) (`mcp__adsagent__*`) | Google Ads MCP (`mcp__google_ads_mcp__*`) |
+| Google Ads | `~~google-ads` | Chrome DevTools Protocol | Any Google Ads MCP server |
 | Search Console | `~~search-console` | gcloud CLI + Search Console API | Any GSC-compatible MCP server |
 | CMS | `~~cms` | Direct API (WordPress REST, Strapi, Contentful, Ghost) | Any CMS MCP server |
 
 Skills use conditional blocks based on available tools. If a connector is not available, the skill gracefully degrades — for example, `seo-analysis` can still run a technical crawl without GSC data.
 
 **Setup:**
-- **Google Ads:** See `google-ads/shared/preamble.md`. Get a free API key from [adsagent.org](https://www.adsagent.org), set `ADSAGENT_API_KEY`, and the `.mcp.json` auto-configures the MCP server.
+- **Chrome DevTools:** No API keys required. Just start Chrome with remote debugging enabled.
 - **Search Console:** See `seo/shared/preamble.md`. Requires Google Cloud SDK, Search Console API enabled, and OAuth login.
 - **CMS:** Run `/toprank:setup-cms` to configure WordPress, Strapi, Contentful, or Ghost.
 
@@ -293,19 +258,13 @@ google-ads/               <- Google Ads skills go here
 
 **Pull requests:** One skill per PR. Test your skill before submitting. Bump `VERSION` and update `CHANGELOG.md`.
 
-Questions? Open an issue.
+Questions? Open an issue at https://github.com/leamsigc/toprank-opencode-skills
 
 ---
 
-## Star History
+## Repository
 
-<a href="https://www.star-history.com/?repos=nowork-studio%2Ftoprank&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=nowork-studio/toprank&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=nowork-studio/toprank&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=nowork-studio/toprank&type=date&legend=top-left" />
- </picture>
-</a>
+https://github.com/leamsigc/toprank-opencode-skills
 
 ---
 
